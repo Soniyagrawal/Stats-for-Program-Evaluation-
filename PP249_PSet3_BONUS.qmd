@@ -1,0 +1,102 @@
+---
+title: 'Problem Set 3: Extra Credit'
+author: "Soniya Agrawal"
+date: "September 24 2024"
+format: 
+  html:
+    embed-resources: true
+---
+
+
+
+# Analyzing a large cluster-randomized trial of masks to stop COVID-19 in Bangladesh
+
+This extra credit problem set will re-analyze a famous cluster-randomized trial that seeks to assess the impact of (encouraging) mask wearing on COVID-19 transmission in Bangladesh; the paper is [here](https://www.science.org/doi/10.1126/science.abi9069). The original experiment is quite involved. To streamline this problem set, we will focus on a subset of the original experiment (Wave 7) and ignore some of the complications in the actual randomization (especially matched pairs and variation in the treatment itself). 
+
+
+First, let's load some useful packages.
+```{r}
+#| message: false
+#| warning: false
+
+library(tidyverse)
+library(skimr) # Tidy summary statistics table 
+library(estimatr) # For "lm_robust"
+```
+
+
+### Load in data set
+Download the data set from bcourses and make sure that it's in the same directory as your `Rmd` file.
+
+Now let's load the data set into `R`.
+```{r}
+load("Bangladesh_RCT_subset.RData")
+```
+
+Let's make sure that we loaded it right.
+```{r}
+dat |> glimpse()
+```
+
+```{r}
+dat |> skim()
+```
+
+
+Some variable definitions:
+
+- `posXsymp` is the binary outcome of interest, which denotes whether a person is symptomatic and tests positive for COVID-19
+- `treatment` is the binary indicator for whether the person's village was encouraged to wear a masks
+- `union` is a numeric string denoting the village; this is the unit of randomization
+- `above_50` is an indicator for whether the person is older than 50 years old
+- `female` is an indicator for whether the person identifies as female
+
+
+### Basic data checks
+Before we dive in, let's look at a few key metrics. 
+
+
+#### Sample size
+How many people are in our data set? How many villages (`union`)? How many people are in each village?
+```{r}
+summary(dat)
+villages <- n_distinct(dat$union)
+view(villages) #84clusters
+nrow(dat) #total number of people 
+by_village <- table(dat$union)
+print(by_village)
+```
+
+
+
+#### Treatment
+What proportion of people are assigned to treatment? What about villages?
+```{r}
+```
+
+
+#### Outcome
+What is the average positivity rate? Without doing any additional calculations, what do you conclude about the resulting standard error for an outcome like this?
+```{r}
+```
+
+What are the unadjusted ("raw") means for the treatment groups?
+```{r}
+```
+
+
+### Using regression
+
+Use the `lm_robust` function to compute the estimated treatment effect and corresponding standard error appropriately adjusting for clustering (but without any additional covariate adjustment). 
+```{r}
+```
+
+
+Now compute the "naive" regression that does not appropriately account for clustering. What is different? Does this look like you expect?
+```{r}
+```
+
+
+Finally, extend the regression that accounts for clustering to also adjust for individual-level covariates. How does the standard error change?
+```{r}
+```
