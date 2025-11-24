@@ -1,0 +1,163 @@
+---
+title: "Agrawal_SoniyaPSET2"
+output: pdf_document
+date: "2025-09-12"
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+
+Question 1.1 Specify the treatment, observed outcome, and potential outcomes for this causal claim.
+Answer: The treatment is immediate access to the program and the control is being put on a wait list.
+The treatment effect (Y1-Y0) is the average reduction in shooting victimization due to participation.
+
+Question 1.2 Describe a possible form of selection bias that might affect who ends up participating in the program.
+Answer: Given that the program is being offered to people who are "willing to participate", it takes away from the randomness of the treatment effect.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("/Users/soniyaagrawal/Desktop/SEM_3/STATS PE/PSET2 data")
+my_data <- read.csv("TN_STAR_reduced.csv")
+#install.packages("dplyr")
+library("dplyr")
+#install.packages("ggplot2")
+library("ggplot2")
+library(knitr)
+library(estimatr)
+
+
+```
+
+```{r pressure, echo=FALSE}
+summary(my_data)
+head(my_data)
+str(my_data)
+
+```
+
+```{r}
+#Question 2.1
+summary_results <- aggregate(math_score~treat, data = my_data, 
+                             FUN = function(x) c(n= length (x), 
+                                    mean= mean(x, na.rm =TRUE),
+                                   median= median(x, na.rm = TRUE),
+                                   sd =sd(x, na.rm = TRUE),
+                                   min =min(x, na.rm = TRUE),
+                                   max= max(x, na.rm = TRUE)
+                           ))
+print(summary_results)
+
+#Adding labels
+summary_results$Group <- ifelse(summary_results$treat == 0, "Control", "Treatment")
+
+# Reorder columns to put Group first
+summary_results <- summary_results[c("Group", "treat", "math_score")]
+#view(summary_results)
+
+robust_SE <- lm_robust(math_score~treat, data = my_data)
+
+```
+
+Question 2.2
+
+• What is control group mean?
+
+The control group mean is -0.04933773
+
+• What is the treatment group mean?
+
+The treatement group mean is 0.13046503
+
+• What is the estimated treatment effect?
+
+The treatement effect is Y1-Y0 = 0.1797(0.18)
+
+• What is the estimated standard error on the treatment effect?
+What is the “t statistic”?
+
+The SE is 0.03 and the t statistic is 0.18/0.03= 6.
+
+• Is the impact of treat on “math_score” statistically significant at the .05 level?
+
+Our treatment effect is far from 0 is statistically significant.
+
+Question 2.3 Conduct a two-sample t-test for the difference in means between the treatment group and the control group.
+What is the t statistic?
+Does this differ from your answer to Question 2.2?
+
+Answer: It is the same and the numbers agree.
+
+Question 2.4 Consider the case where we double the sample size.
+Holding all else equal, we would see the following:
+
+• Standard Error: Increase, Decrease, or Stay the Same?
+
+The SE will decrease.
+
+• t-statistic: Increase, Decrease, or Stay the Same?
+
+Given that the SE value will shrink, the t stat will increase.
+
+• p-value: Increase, Decrease, or Stay the Same?
+
+With increasing t value, the p-value will become smaller or decrease.
+
+```{r}
+#Question 3
+Green_data<- read.csv("Gerber_APSR_Reduced.csv")
+#View(Green_data)
+robust_Green <- lm_robust(vote~treat, data = Green_data)
+#View(robust_Green)
+# Quick summary
+New_data <-aggregate(vote ~ treat, data = Green_data, FUN = function(x) c(n = length(x), mean = mean(x), sd =sd (x), sum = sum(x)))
+
+                
+#View(New_data)                    
+
+```
+
+Question 3.1
+
+• What is control group mean?
+
+The control group mean is 0.296
+
+• What is the treatment group mean?
+
+The treatment group mean is 0.3779482.
+
+• What is the estimated treatment effect?
+
+The estimated treatment effect is 0.081.
+
+• What is the estimated standard error on the treatment effect?
+What is the “t statistic”?
+
+The estimated SE on the treatment effect is 0.00269.
+The t statistic is 30.11
+
+• Is the impact of “treat” on “vote” statistically significant at the .05 level?
+
+There is a significant impact of the treatment on vote.
+We have a p value of 4.73e-200.
+
+Question 3.2 Conduct a two-sample t-test for the difference in means between the treatment group and the control group.
+What is the t statistic?
+Does this differ from your answer to Question 3.1?
+
+Answer: The two supplement each other.
+
+Question 3.3 Consider the case where we double the sample size.
+Holding all else equal, we would see the following:
+
+• Standard Error: Increase, Decrease, or Stay the Same?
+
+The SE will decrease by one over the sq root of 2 as our sample size increases.
+
+• t-statistic: Increase, Decrease, or Stay the Same?
+
+The value of t-stat will increase.
+
+• p-value: Increase, Decrease, or Stay the Same?
+
+It will decrease even further.

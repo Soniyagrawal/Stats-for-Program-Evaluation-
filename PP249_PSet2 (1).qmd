@@ -1,0 +1,149 @@
+---
+title: 'Problem Set 2: Question 4'
+author: "Soniya Agrawal"
+date: "September 17, 2025"
+format: 
+  html:
+    embed-resources: true
+---
+
+# Using regression to analyze TN STAR
+
+In the Question 2., you partly worked through the famous Tennessee STAR study, which looked at the effect of smaller class size on student achievement. Here we'll explore a bit more about the data set and look at subgroup variation.
+
+First, let's load some useful packages.
+
+```{r}
+#| message: false
+#| warning: false
+
+library(tidyverse)
+library(skimr) # Tidy summary statistics table 
+library(estimatr) # For "lm_robust"
+```
+
+##### Load in data set
+
+Download the data set from bcourses and make sure that it's in the same directory as your `Rmd` file.
+
+Now let's load the data set into `R`.
+
+```{r}
+load("TN_STAR_for_PS2_Bonus.RData")
+```
+
+Let's make sure that we loaded it right.
+
+```{r}
+star |> glimpse()
+```
+
+```{r}
+star |> skim()
+```
+
+So far so good. We've greatly simplified the data set here: `boy` and `white` are the relevant indicators for self-reported gender and race; `free_lunch` is an indicator for free or reduced-price lunch status, which is generally available for low-income students; `treat` is the indicator for random assignment to treatment.
+
+Our outcome variables of interest are standardized test scores at the end of Kindergarten in math and reading: `std_math_score_k` and `std_read_score_k`.
+
+### Visualize your data
+
+Here is a boxplot of the overall distribution of `std_math_score_k` in our study sample.
+
+```{r}
+ggplot(star, aes(y = std_math_score_k)) + 
+  geom_boxplot() +
+  labs(y = "Standardized math score in Kindergarten")
+```
+
+#### Question (a)
+
+Plot the distribution of test scores separately for white vs. non-white students. (You're welcome to stick with a boxplot, but you're also welcome to change!)
+
+```{r}
+ggplot(star, aes(x = white, y = std_math_score_k, fill = white)) + 
+  geom_boxplot() +
+  labs(
+    x = "White",
+    y = "Standardized math score in Kindergarten", fill = "White")
+
+```
+
+#### Question (b)
+
+Plot the distribution of test scores separately by treatment status. Is there any (visual) evidence of an effect on math score?
+
+```{r}
+ggplot(star, aes(x = treat, y = std_math_score_k, fill = treat)) + 
+  geom_boxplot() +
+  labs(
+    x = "Treatment",
+    y = "Standardized math score in Kindergarten", fill = "Treatment")
+
+#There is a visual difference between the treatment and control group. The mean of the treatment group is positive, while that of the control is negative. 
+
+```
+
+#### Question (c)
+
+Plot the distribution of test scores separately by treatment status *and* race. What can you say?
+
+```{r}
+ggplot(star, aes(x = treat, y = std_math_score_k, fill = white)) + 
+  geom_boxplot() +
+  labs(
+    x = "Treatment",
+    y = "Standardized math score in Kindergarten", fill = "White")
+
+#The difference in race is visible. The non-white students in the control and treatment perform poorly overall in comparison to white. Note that the control non-white students are the worst performers in the four plots. 
+```
+
+### Estimate impacts
+
+#### Question (d)
+
+Replicating your answer from Question 2 in the main problem set, use regression to estimate the impact of being assigned to a small class on students' end-of-kindergarten math scores (in SD units).
+
+```{r}
+AnswerD <- lm_robust(std_math_score_k~treat, data = star)
+#The treatment effect is 0.18.
+```
+
+#### Question (e)
+
+Estimate the impact of small class size separately by `white`. Does the impact appear larger for one group? Which one?
+
+```{r}
+AnswerE <- lm_robust(std_math_score_k~treat+white, data=star)
+#View(AnswerE)
+#Being white is more impactful than getting the treatment.
+
+```
+
+#### Question (f)
+
+Check your intuition from Question (e) by fitting a linear regression with an interaction by `white`. What does this tell you about treatment effect variation by white / non-white?
+
+```{r}
+AnswerF <- lm_robust(std_math_score_k~treat+white+treat:white, data=star)
+#View(AnswerF)
+#The treatment on non-white students is bigger than on the non-white students.
+```
+
+#### Question (g)
+
+As we discussed in class, it's often a good idea to adjust for pre-treatment covariates when estimating the treatment effect in a randomized trial. Re-estimate the effect of treatment on standardized kindergarten math score, adjusting for the available pre-treatment covariates. How much smaller is the standard error compared to the unadjusted version? (*Hint:* Careful about which variables in the data set are pre-treatment!)
+
+```{r}
+adjusted_model <- lm(std_math_score_k ~ treat + 
+                       white +              
+                       free_lunch + boy,data = star)
+#View(adjusted_model)
+summary(adjusted_model)
+#The SE of the treatment dropped from 0.053 to 0.02820. 
+
+```
+
+```{r}
+
+```
