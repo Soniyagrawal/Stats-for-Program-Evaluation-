@@ -1,0 +1,326 @@
+---
+title: "Problem Set 5: Extra Credit"
+date: "October 29, 2025"
+format:
+  html:
+    embed-resources: true
+---
+
+# Propensity Score Matching
+
+### Setup
+
+Continuing Part 2 of Problem Set 5: an important question in health policy is the effect of maternal smoking during pregnancy on child birth weight. This is a notoriously difficult effect to disentangle. In this problem set, we follow a famous analysis from [Almond et al. (2005)](http://qje.oxfordjournals.org/content/120/3/1031.abstract), who assemble detailed observational data on family characteristics, maternal behavior (including smoking behavior), and birth outcomes.
+
+The data set `lbw_data` contains:
+
+-   `child_birthwt`: the child's birth weight (in grams), which is the primary outcome of interest
+
+-   `use_tobacco`: an indicator for whether the mother used tobacco during pregnancy, which is the "treatment" of interest
+
+-   and a number of useful covariates that ostensibly predict child birthweight, maternal smoking, or both. For pedagogical purposes, we recommend you only consider / use the following covariates (although you are welcome to include others if you feel adventurous):
+
+-   `any_drink_on_avg`
+
+-   `mother_foreign_born`
+
+-   `mother_hispanic_other`
+
+-   `mother_black`
+
+-   `mother_educ_hs`
+
+-   `mother_educ_less_than_hs`
+
+-   `mother_cardiac_disease`
+
+-   `mother_lung`
+
+-   `mother_diabetes`
+
+We'll need the following libaries, so let's load them at the outset. If you don't have them all installed, you'll need to install them! For reference:
+
+-   `tidyverse` is the package that allows you to use tidy code (rather than base R code)
+-   `skimr` allows you to summarize and skim your dataset
+-   `ggplot2` is our data visualization package.
+-   `cobalt` is great for creating covariate balance plots and tables
+-   `MatchIt` will allow us to implement matching methods in R
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(skimr)
+library(ggplot2)
+library(cobalt)
+library(MatchIt)
+library(estimatr)
+
+set.seed(8675309)
+```
+
+Let's first wrap our head around this dataset!
+
+Load the dataset into your data environment and then skim the dataframe to get a sense of your variables. *Hint:* if you're having a hard time loading the data, make sure you put the dataset in the same folder as your RMD and opened your RMD by double clicking on it (thereby setting your working directory to the folder with your dataset and RMD).
+
+```{r}
+load("lbw_data.RData")
+lbw_data |> skim()
+```
+
+Let's look at some outcome distributions (i.e. distributions of birthweights for various types of mothers). First, let's create a density plot showing the proportion of babies at each birthweight.
+
+```{r}
+ggplot(data = lbw_data) + geom_density(aes(x = child_birthwt), fill = "grey") + 
+  theme_bw() + xlab("Birthweight")
+```
+
+Now let's look at this separately by `use_tobacco`.
+
+```{r}
+ggplot(data = lbw_data) + geom_density(aes(x = child_birthwt, fill = factor(use_tobacco)), alpha = 0.5) + 
+  theme_bw() + scale_fill_discrete(name = "Mother Uses\nTobacco") + xlab("Birthweight")
+```
+
+### Regression
+
+1)  Let's examine this relationship via regression
+
+```{=html}
+<!-- -->
+```
+a)  Run a regression to estimate the relationship between smoking and birthweight. (The output may look familiar). What are mean birthweights for children whose mothers did not smoke? What about for children whose mothers smoked?
+
+```{r}
+model_simple <- lm(child_birthwt ~ use_tobacco, data = lbw_data)
+summary(model_simple)
+
+#Calcuating mean weight for non-smoking mothers
+intercept <- coef(model_simple)[1]
+tobacco_coef <- coef(model_simple)[2]
+mean_no_smoke <- intercept
+mean_smoke <- intercept + tobacco_coef
+
+#Displaying output
+cat("Mean birthweight for children whose mothers did NOT smoke:", 
+    round(mean_no_smoke, 2), "grams\n")
+#Mean birthweight for children whose mothers did NOT smoke: 3416.28 grams
+cat("Mean birthweight for children whose mothers DID smoke:", 
+    round(mean_smoke, 2), "grams\n")
+#Mean birthweight for children whose mothers DID smoke: 3202.14 grams
+cat("Difference:", round(tobacco_coef, 2), "grams\n")
+#Difference: -214.14 grams
+```
+
+b)  Now run a regression predicting child birthweight using maternal smoking and a mix of relevant covariates that you believe may be confounders (i.e. variables that you believe might be correlated with both our treatment and our outcome). At a minimum, please use each of the following nine variables:
+
+-   `any_drink_on_avg` -- whether the mother indicates that they drink even one drink on average in the typical week
+-   `mother_foreign_born` -- whether the mother was born outside the US
+-   `mother_hispanic_other` -- whether the mother is Hispanic or other race. A dummy referenced against White.
+-   `mother_black` -- whether the mother is Black. Another dummy referenced against White.
+-   `mother_educ_hs` -- whether the mother only has a high school degree (i.e. no bachelors, etc.). A dummy referenced against "has a degree above a high school degree (e.g. a Bachelors degree)."
+-   `mother_educ_less_than_hs` -- whether the mother does not have a high school degree. Another dummy referenced against "has a degree above a high school degree (e.g. a Bachelors degree)."
+-   `mother_cardiac_disease` -- whether the mother has cardiac disease
+-   `mother_lung` -- whether the mother has a lung disease
+-   `mother_diabetes` -- whether the mother has diabetes
+
+In your regression, what is the relationship between maternal smoking and child birthweight, after adjusting for the the covariates you've chosen?
+
+```{r}
+model_covariates <- lm(child_birthwt ~ use_tobacco + 
+                         any_drink_on_avg + 
+                         mother_foreign_born + 
+                         mother_hispanic_other + 
+                         mother_black + 
+                         mother_educ_hs + 
+                         mother_educ_less_than_hs + 
+                         mother_cardiac_disease + 
+                         mother_lung + 
+                         mother_diabetes, 
+                       data = lbw_data)
+
+
+summary(model_covariates)
+
+# Extract key coefficient
+tobacco_coef_adjusted <- coef(model_covariates)["use_tobacco"]
+
+cat("\nAdjusted effect of maternal smoking on birthweight:", 
+    round(tobacco_coef_adjusted, 2), "grams\n")
+#Adjusted effect of maternal smoking on birthweight: -204.12 grams
+```
+
+c)  Compared to the bivariate regression you ran above in part (a), what additional information does this regression provide that is relevant to estimating the causal relationship between maternal smoking and child birthweight?
+
+```{r}
+#The multiple regression provides a more credible estimate of the causal effect by adjusting for observable confounders, but it still relies on the strong assumption that there are no important #unmeasured confounders remaining.It helps provide control for confounding, reduces OVB and gives evidence about the magnitude of confounding.
+```
+
+### Matching
+
+Let's start by looking at overall covariate balance.
+
+2)  Assess and describe covariate balance on this data set. Are there any covariates where you might be concerned about imbalance?
+
+```{r}
+love.plot(use_tobacco ~ any_drink_on_avg + 
+            mother_foreign_born + 
+            mother_hispanic_other + 
+            mother_black + 
+            mother_educ_hs + 
+            mother_educ_less_than_hs + 
+            mother_cardiac_disease + 
+            mother_lung + 
+            mother_diabetes,
+          data = lbw_data,
+          thresholds = c(m = 0.1),
+          abs = TRUE,
+          var.order = "unadjusted",
+          title = "Covariate Balance: Smokers vs Non-Smokers (Unadjusted)")
+
+
+#Imbalance- Mothers who smoked were significantly more likely to have only a high school degree or less than a high school degree
+#Black and Hispanic mothers showed different rates of smoking compared to White mothers, which is concerning given known health disparities.
+#Smokers were more likely to also drink alcohol, and alcohol independently affects birthweight.
+```
+
+3)  Now let's match our mothers up and conduct the analysis again. We'll use propensity score matching and see if we do any better.
+
+```{=html}
+<!-- -->
+```
+a)  Use `MatchIt` to create a propensity score match for each treated units. For now, we'll use the defaults, which are 1:1 matching and matching *without* replacement. Please match on the following variables:
+
+-   `any_drink_on_avg`
+-   `mother_foreign_born`
+-   `mother_hispanic_other`
+-   `mother_black`
+-   `mother_educ_hs`
+-   `mother_educ_less_than_hs`
+-   `mother_cardiac_disease`
+-   `mother_lung`
+-   `mother_diabetes`
+
+After you construct the match, report how many treated and control units you retain. *Hint:* This should have the form of `lbw_match <- matchit(use_tobacco ~ ...)` where you should fill in `...`
+
+```{r}
+# Perform 1:1 propensity score matching without replacement
+lbw_match <- matchit(use_tobacco ~ any_drink_on_avg + 
+                       mother_foreign_born + 
+                       mother_hispanic_other + 
+                       mother_black + 
+                       mother_educ_hs + 
+                       mother_educ_less_than_hs + 
+                       mother_cardiac_disease + 
+                       mother_lung + 
+                       mother_diabetes,
+                     data = lbw_data,
+                     method = "nearest",  
+                     distance = "glm",    
+                     replace = FALSE)     
+summary(lbw_match)
+
+match_summary <- summary(lbw_match)
+
+matched_data <- match.data(lbw_match)
+
+# Count treated and control units in matched sample
+table(matched_data$use_tobacco)
+
+# Report results
+cat("\nMatching Results:\n")
+cat("Number of treated units (smokers) retained:", 
+    sum(matched_data$use_tobacco == 1), "\n")
+cat("Number of control units (non-smokers) retained:", 
+    sum(matched_data$use_tobacco == 0), "\n")
+cat("Total matched sample size:", nrow(matched_data), "\n")
+
+#Number of treated units (smokers) retained: 828 
+#Number of control units (non-smokers) retained: 828 
+#Total matched sample size: 1656 
+```
+
+b)  Check covariate balance for this matched sample (*Hint:* use `love.plot`). Is it any better than before?
+
+```{r}
+love.plot(lbw_match, 
+          thresholds = c(m = 0.1),
+          abs = TRUE,
+          var.order = "unadjusted",
+          title = "Covariate Balance Before and After Matching",
+          colors = c("red", "blue"),
+          shapes = c("circle", "triangle"),
+          sample.names = c("Unmatched", "Matched"))
+
+#Covariate balance improved significantly. All nine covariates now have SMD < 0.1, indicating that the matched sample of smokers and non-smokers are well-balanced on observed characteristics.
+```
+
+c)  Output the data set (e.g., via `match.data(lbw_match)`) and estimate the impact of `use_tobacco` on `child_birthwt`. How does this differ from the original estimate from Part 1?
+
+```{r}
+matched_data <- match.data(lbw_match)
+head(matched_data)
+dim(matched_data)
+
+mean_diff <- matched_data %>%
+  group_by(use_tobacco) %>%
+  summarise(mean_birthwt = mean(child_birthwt, na.rm = TRUE),
+            sd_birthwt = sd(child_birthwt, na.rm = TRUE),
+            n = n())
+
+print(mean_diff)
+
+# Calculate the treatment effect (difference in means)
+ate_matched <- mean_diff$mean_birthwt[mean_diff$use_tobacco == 1] - 
+               mean_diff$mean_birthwt[mean_diff$use_tobacco == 0]
+
+
+
+cat("\nAverage Treatment Effect (ATE) from matching:", 
+    round(ate_matched, 2), "grams\n")
+#Average Treatment Effect (ATE) from matching: -209.36 grams
+
+# Run regression on matched data (without covariates)
+model_matched_simple <- lm(child_birthwt ~ use_tobacco, 
+                           data = matched_data,
+                           weights = weights)  # use matching weights
+
+summary(model_matched_simple)
+
+
+```
+
+d)  Repeat this analysis on the matched data set, but now adjusting for all the covariates that you matched on rather than via a simple bivariate regression. What's your new estimate?
+
+```{r}
+# Run regression on matched data WITH covariates (for robustness)
+model_matched_adjusted <- lm(child_birthwt ~ use_tobacco + 
+                               any_drink_on_avg + 
+                               mother_foreign_born + 
+                               mother_hispanic_other + 
+                               mother_black + 
+                               mother_educ_hs + 
+                               mother_educ_less_than_hs + 
+                               mother_cardiac_disease + 
+                               mother_lung + 
+                               mother_diabetes,
+                             data = matched_data,
+                             weights = weights)
+
+summary(model_matched_adjusted)
+
+# Compare all estimates
+cat("\n=== COMPARISON OF ESTIMATES ===\n")
+cat("Part 1a - Unadjusted (full sample):", -214.141, "grams\n")
+cat("Part 1b - Adjusted with covariates (full sample):", -204.12, "grams\n")
+cat("Part 2 - Propensity score matched sample:", round(ate_matched, 2), "grams\n")
+cat("Part 2 - Matched + regression adjustment:", 
+    round(coef(model_matched_adjusted)["use_tobacco"], 2), "grams\n")
+
+```
+
+e)  Why might we not be persuaded that we've gleaned the causal effect of maternal smoking on child birthweight?
+
+```{r}
+#There are many reasons why we still haven't determined the causal effect of maternal smoking - factors like mother's stress levels, nutrition, genetics, parental care engagement, partner engagement are yet to be accounted for.Even with perfect balance on observed covariates, if unmeasured confounders exist, our estimate is still biased.
+#Additionally Propensity score matching required us to drop observations without good matches and restrict to the "common support" region, meaning we only estimated effect for mothers who could be matched. 
+```
+
